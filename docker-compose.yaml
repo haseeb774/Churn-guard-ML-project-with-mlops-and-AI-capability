@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  # ── FastAPI Backend ────────────────────────────────────────────────────────
+  api:
+    build: .
+    container_name: churnguard-api
+    ports:
+      - "8000:8000"
+    environment:
+      - GOOGLE_AI_STUDIO_API_KEY=${GOOGLE_AI_STUDIO_API_KEY}
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_EXPERIMENT_NAME=churnguard-ai
+    volumes:
+      - ./outputs:/app/outputs
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      - mlflow
+    command: uvicorn app:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Streamlit UI ───────────────────────────────────────────────────────────
+  ui:
+    build: .
+    container_name: churnguard-ui
+    ports:
+      - "8501:8501"
+    environment:
+      - GOOGLE_AI_STUDIO_API_KEY=${GOOGLE_AI_STUDIO_API_KEY}
+    depends_on:
+      - api
+    command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+
+  # ── MLflow Tracking Server ─────────────────────────────────────────────────
+  mlflow:
+    image: python:3.10-slim
+    container_name: churnguard-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlruns
+      - ./mlflow.db:/mlflow.db
+    command: >
+      sh -c "pip install mlflow --quiet &&
+             mlflow server
+             --backend-store-uri sqlite:///mlflow.db
+             --default-artifact-root /mlruns
+             --host 0.0.0.0
+             --port 5000"

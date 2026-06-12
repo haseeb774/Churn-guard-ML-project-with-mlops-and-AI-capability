@@ -1,0 +1,41 @@
+stages:
+  ingest:
+    cmd: python -c "
+      import sys; sys.path.insert(0, '.');
+      from src.data_ingest import DataIngest;
+      DataIngest('data/raw/WA_Fn-UseC_-Telco-Customer-Churn.csv').data_import()
+      "
+    deps:
+      - src/data_ingest.py
+      - data/raw/WA_Fn-UseC_-Telco-Customer-Churn.csv
+    outs:
+      - data/raw/churn.csv
+
+  transform:
+    cmd: python -c "
+      import sys, pandas as pd; sys.path.insert(0, '.');
+      from src.data_transform import Datatransform;
+      df = pd.read_csv('data/raw/churn.csv');
+      Datatransform(df).transform_data()
+      "
+    deps:
+      - src/data_transform.py
+      - data/raw/churn.csv
+    outs:
+      - data/processed/processed_churn.csv
+
+  train:
+    cmd: python run_pipeline.py --data data/raw/WA_Fn-UseC_-Telco-Customer-Churn.csv
+    deps:
+      - src/model_train.py
+      - src/data_ingest.py
+      - src/data_transform.py
+      - data/processed/processed_churn.csv
+    outs:
+      - outputs/model.pkl
+    metrics:
+      - outputs/metrics.json:
+          cache: false
+    plots:
+      - outputs/analysis/07_roc_curve.png
+      - outputs/analysis/08_feature_importance.png
